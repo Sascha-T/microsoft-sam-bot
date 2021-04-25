@@ -1,4 +1,4 @@
-import {VoiceConnection} from "discord.js";
+import {StreamDispatcher, VoiceConnection} from "discord.js";
 import {randomBytes} from "crypto";
 import {join} from "path";
 import {createReadStream, rmSync} from "fs";
@@ -15,30 +15,26 @@ let nodespeak = require("nodespeak")
 	}
  */
 
-async function _say(text: string, file = "tmp", voice = "Microsoft Hazel Desktop") {
+async function _say(text: string, file = "tmp", voice = "Microsoft Sam") {
     spawnSync("nodespeak.exe", ["-i", text, "-v", voice, "-w", "-o", join("tmp", file) + ".wav"]);
 }
 
-export async function say(vc: VoiceConnection, txt: string): Promise<void> {
-    return new Promise<void>(async (res) => {
+export async function say(vc: VoiceConnection, txt: string): Promise<any> {
+    let code = randomBytes(16).toString("hex");
+    await _say(txt, code);
 
-        let code = randomBytes(16).toString("hex");
-        await _say(txt, code);
+    let proc = spawnSync("ffmpeg", ["-i", join("tmp", code + ".wav"), join("tmp", code + ".mp3")], {
+        cwd: process.cwd()
+    });
 
-        let proc = spawnSync("ffmpeg", ["-i", join("tmp", code + ".wav"), join("tmp", code + ".mp3")], {
-            cwd: process.cwd()
-        });
-
-        let r = createReadStream(join("tmp", code + ".mp3"));
-        let p = vc.play(r);
-        await new Promise<void>((res, rej) => {
-            p.on("finish", () => {
-                console.timeEnd("Speaking")
-                res();
-            })
-        })
+    let r = createReadStream(join("tmp", code + ".mp3"));
+    let p = vc.play(r);
+    p.on("finish", () => {
         rmSync(join("tmp", code + ".wav"));
         rmSync(join("tmp", code + ".mp3"));
-        res();
     })
+    let ret = [];
+    ret[0] = p;
+    ret[1] = code;
+    return ret;
 }
